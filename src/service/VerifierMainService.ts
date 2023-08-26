@@ -136,10 +136,11 @@ export class VerifierMainService {
     }
   }
 
-  async vpVerifyWithMessage(
-    message: Message<MessageType>,
-    zkidAccountAddr: string
-  ) {
+  async vpVerifyWithMessage(request: {
+    message: Message<MessageType>;
+    zkidAccountAddr: string;
+  }) {
+    const { message, zkidAccountAddr } = request;
     for (let i = 0; i < this.verifiers.length; i++) {
       // step0: match verifier DID
       if (message.receiver === this.verifiers[i].getKeyUrl('controller')) {
