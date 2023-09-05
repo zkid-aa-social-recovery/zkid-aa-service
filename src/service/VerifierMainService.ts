@@ -13,7 +13,7 @@ import { Keyring } from '@zcloak/keyring';
 import { vpVerify } from '@zcloak/verify';
 import { ethers } from 'ethers';
 import { zkidAccountAbi } from '../zkidAccountAbi';
-import { turncate } from '../utils/string';
+import { rmKey, turncate } from '../utils/string';
 
 import type { Did } from '@zcloak/did';
 import type { Message, MessageType } from '@zcloak/message/types';
@@ -31,12 +31,15 @@ export class VerifierMainService {
   chains: any;
 
   verifiers: Did[];
+  verifiersWallet: any[];
   proposalNum: number;
   isQualified: Map<number, Map<string, Map<string, number>>>;
 
   @Init()
   async init() {
     const keyring = new Keyring();
+    this.verifiers = [];
+    this.verifiersWallet = [];
 
     this.verifiers[0] = keys.fromMnemonic(
       keyring,
@@ -49,6 +52,16 @@ export class VerifierMainService {
     this.verifiers[2] = keys.fromMnemonic(
       keyring,
       this.verifiersMnemonic[2].mnemonic
+    );
+
+    this.verifiersWallet.push(
+      ethers.Wallet.fromMnemonic(this.verifiersMnemonic[0].mnemonic)
+    );
+    this.verifiersWallet.push(
+      ethers.Wallet.fromMnemonic(this.verifiersMnemonic[1].mnemonic)
+    );
+    this.verifiersWallet.push(
+      ethers.Wallet.fromMnemonic(this.verifiersMnemonic[2].mnemonic)
     );
 
     this.proposalNum = 0;
@@ -94,6 +107,7 @@ export class VerifierMainService {
   ): number | undefined {
     const guardianMap = this.isQualified.get(proposalNum);
     if (guardianMap) {
+      this.logger.warn(`guardianDidUrl: ${guardianDidUrl}`);
       const verifierMap = guardianMap.get(guardianDidUrl);
       if (verifierMap) {
         return verifierMap.get(verifierDidurl);
@@ -106,25 +120,26 @@ export class VerifierMainService {
   comprehensiveJudge(
     proposalNum: number,
     guardianDidUrl: string,
-    verifiersDidurl: string[]
+    verifiersDidUrl: string[]
   ): boolean | undefined {
     // verifier number should be 3
-    if (verifiersDidurl.length !== 3) {
+    if (verifiersDidUrl.length !== 3) {
       this.logger.info('verifier number not equal 3');
       return undefined;
     }
 
     let resNum = 0;
     // get qualification num
-    for (let i = 0; i < verifiersDidurl.length; i++) {
+    for (let i = 0; i < verifiersDidUrl.length; i++) {
+      this.logger.warn(verifiersDidUrl[0]);
       const res = this.getQualified(
         proposalNum,
         guardianDidUrl,
-        verifiersDidurl[i]
+        verifiersDidUrl[i]
       );
       if (res === undefined) {
         throw new Error(
-          `comprehensiveJudge inner error: guraridan (${guardianDidUrl}) donot have qualification, verifier is ${verifiersDidurl[i]}`
+          `comprehensiveJudge inner error: guardian (${guardianDidUrl}) donot have qualification, verifier is ${verifiersDidUrl[i]}`
         );
       }
       resNum += res;
@@ -143,8 +158,8 @@ export class VerifierMainService {
     const { message, zkidAccountAddr } = request;
     for (let i = 0; i < this.verifiers.length; i++) {
       // step0: match verifier DID
-      if (message.receiver === this.verifiers[i].getKeyUrl('controller')) {
-        const guardianDidUrl = message.sender;
+      if (message.receiver === this.verifiers[i].getKeyUrl('keyAgreement')) {
+        const guardianDidUrl = rmKey(message.sender);
         const verifierDidUrl = this.verifiers[i].getKeyUrl('controller');
         const currentProposalNum = this.currentProposalNum();
 
@@ -181,7 +196,7 @@ export class VerifierMainService {
           verifyRes
         );
         this.logger.info(
-          `get qualified: proposal num (${this.currentProposalNum()}) => guardian (${guardianDidUrl}) => verifier (${verifierDidUrl}) => verifyRes (${verifyRes})`
+          `get qualified: proposal num (${currentProposalNum}) => guardian (${guardianDidUrl}) => verifier (${verifierDidUrl}) => verifyRes (${verifyRes})`
         );
 
         // on-chain store
@@ -195,11 +210,17 @@ export class VerifierMainService {
           zkidAccountAbi,
           signer
         );
-        const tx = await zkidAccountContract.submitVpVerifyRes(
-          currentProposalNum,
-          turncate(guardianDidUrl),
-          verifyRes
-        );
+        const tx = await zkidAccountContract
+          .connect(
+            ethers.Wallet.fromMnemonic(
+              this.verifiersMnemonic[i].mnemonic
+            ).connect(provider)
+          )
+          .submitVpVerifyRes(
+            currentProposalNum,
+            turncate(guardianDidUrl),
+            verifyResBool
+          );
         await tx.wait();
         return;
       }
