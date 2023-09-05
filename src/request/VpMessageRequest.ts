@@ -8,3 +8,17 @@ export class VpMessageRequest {
   @Rule(RuleType.string().required())
   zkidAccountAddr: string;
 }
+
+export class SetRequest {
+  @Rule(RuleType.number().required())
+  proposalNum: number;
+
+  @Rule(RuleType.string().required())
+  guardianDidUrl: string;
+
+  @Rule(RuleType.string().required())
+  verifierDidUrl: string;
+
+  @Rule(RuleType.boolean().required())
+  verifyRes: number;
+}
