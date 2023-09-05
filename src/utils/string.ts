@@ -3,5 +3,14 @@ export function turncate(str: string) {
     throw new Error('Given string less than 8 characters');
   }
 
-  return str.substring(7);
+  const start = 7;
+  const end = str.length - 7;
+
+  return str.substring(start, end + 1);
+}
+
+export function rmKey(didUrl: string) {
+  const end = didUrl.length - 7;
+
+  return didUrl.substring(0, end + 1);
 }
